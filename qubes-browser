@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -eu
+
+qvm-run $(~/.config/i3/get-qube) 'xdg-open http://'

@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -eu
+var="$($HOME/.config/i3/get-qube)"
+if [ -z $var ]; then
+	exec thunar
+fi	
+exec qvm-run $var "thunar"

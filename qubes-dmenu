@@ -1,0 +1,44 @@
+#!/bin/bash
+_real_dmenu="$(command -v dmenu)"
+dmenu() {
+    local _in _disp _sel _full
+    _in="$(mktemp)" || return 1
+    _disp="$(mktemp)" || { rm -f "$_in"; return 1; }
+    cat > "$_in"
+    cut -f1 "$_in" > "$_disp"
+    _sel="$("$_real_dmenu" -i "$@" < "$_disp")" || { rm -f "$_in" "$_disp"; return 1; }
+    _full="$(awk -F'\t' -v s="$_sel" '$1==s{print; exit}' "$_in")"
+    printf '%s' "$_full"
+    rm -f "$_in" "$_disp"
+}
+
+qube="$(~/.config/i3/get-qube)"
+loc="$HOME/.local/share/applications"
+comb="org.qubes-os.vm._$qube.*.desktop"
+if [ -z "$qube" ]; then
+    comb="*.desktop"
+    loc=/usr/share/applications
+fi
+
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+
+find "$loc" -type f -name "$comb" | while read -r desktop_file; do
+    name=$(grep -m 1 '^Name=' "$desktop_file" | cut -d'=' -f2-)
+    if [ -n "$name" ]; then
+        printf '%s\t%s\n' "$(echo "$name" | sed "s/^$qube: //")" "$desktop_file" >> "$tmp"
+    fi
+done
+
+selection=$(dmenu -p "" < "$tmp") || exit
+desktop_file=$(printf '%s' "$selection" | cut -f2-)
+[ -z "$desktop_file" ] && exit
+
+id=$(basename "$desktop_file" .desktop)
+if command -v gtk-launch >/dev/null 2>&1; then
+    gtk-launch "$id" &
+else
+    exec_cmd=$(grep -m 1 '^Exec=' "$desktop_file" | cut -d'=' -f2-)
+    exec_cmd=$(printf '%s' "$exec_cmd" | sed -E 's/%[a-zA-Z]//g')
+    eval "$exec_cmd" &
+fi
